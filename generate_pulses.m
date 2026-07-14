@@ -7,7 +7,7 @@ function [pdwData, initialSDIF] = generate_pulses(emCfg, t_sim)
         t_current = emCfg(i).t_start;
         TOA_temp = [];
         
-        % T?o chu?i TOA g?c lý thuy?t theo t?ng lo?i hình phát
+        % --- Generate baseline theoretical TOA sequence based on PRI modulation type ---
         if strcmp(emCfg(i).type, 'Fixed')
             TOA_temp = emCfg(i).t_start : emCfg(i).PRI : t_sim;
             
@@ -30,17 +30,19 @@ function [pdwData, initialSDIF] = generate_pulses(emCfg, t_sim)
         N_theoretical = length(TOA_temp);
         total_theoretical_pulses = total_theoretical_pulses + N_theoretical;
         
-        % Áp d?ng c? ch? Pulse Dropout Mask (M?t xung th?c t?)
+        % --- Apply pulse dropout mask mechanism (simulating non-ideal channel conditions) ---
         keep_mask = rand(1, N_theoretical) > emCfg(i).p_missing;
         TOA_temp = TOA_temp(keep_mask);
         N_actual = length(TOA_temp);
         
         if N_actual > 0
+            % Inject Gaussian TOA measurement/arrival arrival errors
             TOA_noise = emCfg(i).toa_error * randn(1, N_actual);
             TOA_temp = TOA_temp + TOA_noise;
             
             ID_temp = ones(1, N_actual) * i;
-            % Cài ??t nhi?u ?o ??c v?t lý cho RF và PW
+            
+            % --- Inject hardware parameter variations and measurement noise for RF and PW ---
             RF_temp = emCfg(i).RF * (1 + 0.1 * (2*rand(1, N_actual) - 1)); 
             PW_temp = emCfg(i).PW * (1 + 0.05 * randn(1, N_actual));      
             
@@ -51,14 +53,14 @@ function [pdwData, initialSDIF] = generate_pulses(emCfg, t_sim)
         end
     end
 
-    % S?p x?p tr?n lu?ng theo trình t? th?i gian TOA ??n máy thu
+    % --- Interleave sorting: Arrange the total overlapping pulse stream chronologically ---
     [TOA_sorted, sort_idx] = sort(TOA_all);
     N_pulses  = length(TOA_sorted);
     RF_sorted = RF_all(sort_idx);
     PW_sorted = PW_all(sort_idx);
     True_ID   = ID_all(sort_idx); 
 
-    % ?óng gói d? li?u ra
+    % --- Pack structural data output for downstream blocks ---
     pdwData.TOA_sorted = TOA_sorted;
     pdwData.RF_sorted = RF_sorted;
     pdwData.PW_sorted = PW_sorted;
@@ -66,7 +68,7 @@ function [pdwData, initialSDIF] = generate_pulses(emCfg, t_sim)
     pdwData.N_pulses = N_pulses;
     pdwData.total_theoretical_pulses = total_theoretical_pulses;
 
-    % L?u tr? tr?ng thái Histogram t?i C=1 ph?c v? v? ?? th? ki?m tra s? 1
+    % --- Capture initial SDIF Histogram state at difference level C=1 for Plot 1 ---
     diff_TOA_C1 = abs(TOA_sorted(1 : end-1) - TOA_sorted(2 : end));
     t_Bin_C1 = 1e-5; 
     max_diff_C1 = max(diff_TOA_C1);

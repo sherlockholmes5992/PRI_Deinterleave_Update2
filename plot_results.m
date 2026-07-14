@@ -1,12 +1,14 @@
 function plot_results(pdwData, separated_sequences, initialSDIF, num_emitters)
     fprintf('\n--- STARTING VISUAL VERIFICATION PLOTS ---\n');
     
+    % --- Unpack Pulse Description Word (PDW) parameters ---
     TOA_sorted = pdwData.TOA_sorted;
     RF_sorted = pdwData.RF_sorted;
     PW_sorted = pdwData.PW_sorted;
     True_ID = pdwData.True_ID;
     N_pulses = pdwData.N_pulses;
 
+    % --- Unpack initial histogram parameters (at first difference rank C=1) ---
     bin_centers_C1 = initialSDIF.bin_centers_C1;
     N_counts_C1 = initialSDIF.N_counts_C1;
     Threshold_C1 = initialSDIF.Threshold_C1;
@@ -15,7 +17,7 @@ function plot_results(pdwData, separated_sequences, initialSDIF, num_emitters)
     num_extracted = length(separated_sequences);
 
     % -------------------------------------------------------------------------
-    % PLOT 1: SDIF Histogram (C=1) - Ki?m tra v?ch ph? PRI v??t ng??ng
+    % PLOT 1: SDIF Histogram (C=1) - Verify candidate PRI spectral lines exceeding threshold
     % -------------------------------------------------------------------------
     figure('Name', 'Verification 1: SDIF Histogram at C=1', 'Position', [100, 100, 800, 450]);
     stem(bin_centers_C1 * 1e3, N_counts_C1, 'Marker', 'none', 'LineWidth', 1.5, 'Color', [0.2 0.4 0.8]);
@@ -29,7 +31,7 @@ function plot_results(pdwData, separated_sequences, initialSDIF, num_emitters)
     legend('Location', 'northeast'); xlim([0, min(max_diff_C1*1e3, 3.5)]);
 
     % -------------------------------------------------------------------------
-    % PLOT 2: PDW Scatter (RF vs PW) - B?n ?? c?m vân tay ??c tr?ng
+    % PLOT 2: PDW Scatter (RF vs PW) - Emitter fingerprint cluster map
     % -------------------------------------------------------------------------
     figure('Name', 'Verification 2: PDW Space (RF vs PW)', 'Position', [150, 150, 700, 450]);
     colors = lines(num_emitters); hold on; grid on;
@@ -42,7 +44,7 @@ function plot_results(pdwData, separated_sequences, initialSDIF, num_emitters)
     legend('Location', 'best');
 
     % -------------------------------------------------------------------------
-    % PLOT 3: Pulse Timeline - Ti?n ?? bóc tách dòng xung x?p ch?ng
+    % PLOT 3: Pulse Timeline - Extraction progress of overlapping pulse streams
     % -------------------------------------------------------------------------
     figure('Name', 'Verification 3: Pulse Timeline', 'Position', [200, 200, 1000, 400]);
     hold on; grid on;
@@ -60,7 +62,7 @@ function plot_results(pdwData, separated_sequences, initialSDIF, num_emitters)
     xlabel('Time of Arrival - TOA (ms)'); title('Visualization of Interleaved Pulses and Extraction Results');
 
     % -------------------------------------------------------------------------
-    % PLOT 4: PRI Variation - ?? th? r?ng c?a/???ng th?ng ki?m th? lo?i hình PRI
+    % PLOT 4: PRI Variation - Fixed/Staggered/Jittered modulation behavior verification profiles
     % -------------------------------------------------------------------------
     if num_extracted > 0
         figure('Name', 'Verification 4: PRI Variation', 'Position', [250, 250, 1200, 600]);
@@ -74,6 +76,8 @@ function plot_results(pdwData, separated_sequences, initialSDIF, num_emitters)
             title(sprintf('Extracted Seq %d (Pulses: %d)', i, length(seq_idx)));
             xlabel('Pulse Index'); ylabel('PRI (ms)');
         end
+        
+        % Dynamic title rendering block handling pre-R2018b fallback paths
         try
             sgtitle('PRI Variation of Extracted Sequences (Simulation of Fig 6)', 'FontSize', 14, 'FontWeight', 'bold');
         catch
