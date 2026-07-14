@@ -49,7 +49,7 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
         E_active = length(active_TOA);
         N_bins = length(bin_centers);
         tau = 1:N_bins; 
-        Threshold = x_emp * (E_active - C) * exp(-tau * k_emp * N_bins);
+        Threshold = x_emp * (E_active - C) * exp(-tau ./ (k_emp * N_bins));
         
         % --- EXTRACT POTENTIAL RADAR PRI CANDIDATES ---
         pot_idx = find(N_counts > Threshold);

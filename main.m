@@ -7,7 +7,7 @@
 clc; clear; close all;
 
 %% --- STEP 1: EMITTER CONFIGURATION ---
-t_sim = 0.12; % Total simulation time window (120 ms)
+t_sim = 0.15; % Total simulation time window (120 ms)
 
 clear emCfg; 
 emCfg(1).type = 'Fixed';     emCfg(1).PRI = 157e-5;             emCfg(1).RF = 3e9;   emCfg(1).PW = 2e-6;   emCfg(1).jitter = 0;   emCfg(1).t_start = 0;      emCfg(1).p_missing = 0.1;          emCfg(1).toa_error = 2e-6;
@@ -19,13 +19,13 @@ emCfg(6).type = 'Fixed';     emCfg(6).PRI = 200e-5;             emCfg(6).RF = 5e
 emCfg(7).type = 'Fixed';     emCfg(7).PRI = 201e-5;             emCfg(7).RF = 5e9;   emCfg(7).PW = 4e-6;   emCfg(7).jitter = 0;   emCfg(7).t_start = 0.0005; emCfg(7).p_missing = 0.1;          emCfg(7).toa_error = 2e-6;
 
 %% --- STEP 2: ALGORITHM HYPERPARAMETERS ---
-algoParams.C_max = 30;       % Maximum difference level (C-level) to prevent infinite loops
-algoParams.M0 = 1.0;         % Distance threshold for physical radar fingerprints matching (RF, PW)
-algoParams.RF_0 = 3e9;       % Radio Frequency (RF) normalization radius
-algoParams.PW_0 = 1e-6;      % Pulse Width (PW) normalization radius
+algoParams.C_max = 25;       % Maximum difference level (C-level) to prevent infinite loops
+algoParams.M0 = 1.2;         % Distance threshold for physical radar fingerprints matching (RF, PW)
+algoParams.RF_0 = 1.2e9;       % Radio Frequency (RF) normalization radius
+algoParams.PW_0 = 2e-6;      % Pulse Width (PW) normalization radius
 algoParams.t_Bin = 1e-5;     % Time bin width for the Sequential Difference Histogram (SDIF)
-algoParams.x_emp = 0.5;      % Empirical scaling factor for the optimal threshold curve bounds
-algoParams.k_emp = 5;        % Decay coefficient controlling the dynamic threshold slope curvature
+algoParams.x_emp = 0.08;      % Empirical scaling factor for the optimal threshold curve bounds
+algoParams.k_emp = 1;        % Decay coefficient controlling the dynamic threshold slope curvature
 
 %% --- STEP 3: EXECUTE SIMULATION ENGINE & DEINTERLEAVING ---
 
