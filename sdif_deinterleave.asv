@@ -24,7 +24,7 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
     while C <= C_max
         % Isolate remaining active (unextracted) pulses
         active_idx = find(~extracted_flags);
-        if length(active_idx) < 10 % 
+        if length(active_idx) < 20 % 
             break; % Terminate if remaining pulse count is insufficient
         end 
         
