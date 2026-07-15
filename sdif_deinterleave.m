@@ -17,68 +17,66 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
     k_emp = algoParams.k_emp;
 
     % --- Initialize tracking arrays ---
-    extracted_flags = false(1, N_pulses); % Boolean mask for processed pulses
-    separated_sequences = {};             % Cell array to store extracted pulse indices
-    C = 1;                                % Initialize to the first difference level
+    extracted_flags = false(1, N_pulses); 
+    separated_sequences = {};             
+    C = 1;                                
 
     while C <= C_max
-        % Isolate remaining active (unextracted) pulses
+        % L?c ra các xung ch?a ???c trích xu?t (Active pulses)
         active_idx = find(~extracted_flags);
-        if length(active_idx) < 10 % 
-            break; % Terminate if remaining pulse count is insufficient
+        if length(active_idx) < 10 
+            break; 
         end 
         
-        % Extract active parameter vectors using index subsets
-        active_TOA = active_idx_subset(TOA_sorted, active_idx);
-        active_RF  = active_idx_subset(RF_sorted, active_idx);
-        active_PW  = active_idx_subset(PW_sorted, active_idx);
+        % ??ng b? hóa lu?ng xung ??u vào Xin theo ?úng ??nh ngh?a bài báo (M?c 3)
+        Xin.TOA = TOA_sorted(active_idx);
+        Xin.RF  = RF_sorted(active_idx);
+        Xin.PW  = PW_sorted(active_idx);
         
-        if length(active_TOA) <= C
-            break; % Terminate if active vector length is smaller than difference level
+        if length(Xin.TOA) <= C
+            break; 
         end
         
         % --- COMPUTE SDIF HISTOGRAM AT DIFFERENCE LEVEL C ---
-        diff_TOA = abs(active_TOA(1 : end-C) - active_TOA(1+C : end));
-        diff_TOA = round(diff_TOA, 7); % Round to 0.1 microseconds to suppress floating-point jitter
+        diff_TOA = abs(Xin.TOA(1 : end-C) - Xin.TOA(1+C : end));
+        diff_TOA = round(diff_TOA, 7); 
         max_diff = max(diff_TOA);
         edges = 0 : t_Bin : (max_diff + t_Bin);
         [N_counts, ~] = histcounts(diff_TOA, edges);
         bin_centers = edges(1:end-1) + t_Bin/2; 
         
         % --- CALCULATE DYNAMIC OPTIMAL THRESHOLD CURVE ---
-        E_active = length(active_TOA);
+        E_active = length(Xin.TOA);
         N_bins = length(bin_centers);
         tau = 1:N_bins; 
         Threshold = x_emp * (E_active - C) * exp(-tau ./ (k_emp * N_bins));
         
-        % --- EXTRACT POTENTIAL RADAR PRI CANDIDATES ---
+        % --- EXTRACT POTENTIAL RADAR PRI CANDIDATES {PRI_p} ---
         pot_idx = find(N_counts > Threshold);
         pot_PRIs_raw = bin_centers(pot_idx);
         
         if isempty(pot_PRIs_raw)
-            C = C + 1; % Increment difference rank if no peaks breach the threshold
+            C = C + 1; 
             continue;
         end
         
         % --- HARMONIC SUPPRESSION FILTER ---
         is_harmonic = false(1, length(pot_PRIs_raw));
         for i = 1:length(pot_PRIs_raw)
-            for j = 1:(i-1)
-                if ~is_harmonic(j)
-                    ratio = pot_PRIs_raw(i) / pot_PRIs_raw(j);
-                    % Check if the candidate is an integer multiple within bin tolerance
-                    if abs(ratio - round(ratio)) < (t_Bin / pot_PRIs_raw(j))
+            for j_harm = 1:(i-1)
+                if ~is_harmonic(j_harm)
+                    ratio = pot_PRIs_raw(i) / pot_PRIs_raw(j_harm);
+                    if abs(ratio - round(ratio)) < (t_Bin / pot_PRIs_raw(j_harm))
                         is_harmonic(i) = true;
                         break;
                     end
                 end
             end
         end
-        pot_PRIs = pot_PRIs_raw(~is_harmonic);
+        PRI_p = pot_PRIs_raw(~is_harmonic); % T?p h?p {PRI_p} chu?n hóa
         pot_idx_filtered = pot_idx(~is_harmonic);
         
         % --- PRI TYPE CLASSIFICATION (JITTER VS. NON-JITTER) ---
-        % Classify based on the adjacency/density of triggered bins
         is_jittered = false(1, length(pot_idx_filtered));
         for i = 1:length(pot_idx_filtered)
             if i < length(pot_idx_filtered) && (pot_idx_filtered(i+1) - pot_idx_filtered(i) <= 2)
@@ -87,104 +85,225 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
             end
         end
         
-        jittered_PRIs = pot_PRIs(is_jittered);
-        non_jittered_PRIs = pot_PRIs(~is_jittered);
-        all_pot_PRIs = [non_jittered_PRIs, jittered_PRIs];
+        jittered_PRIs = PRI_p(is_jittered);
+        non_jittered_PRIs = PRI_p(~is_jittered);
         
-        % Print real-time diagnostics to the Command Window for debugging
-        fprintf('\n[Difference Level C=%d] Potential PRIs (PRI_p) exceeding threshold:\n', C);
-        if ~isempty(non_jittered_PRIs), fprintf('  + Non-Jittered PRIs (ms): %s\n', num2str(non_jittered_PRIs * 1e3, '%.4f  ')); end
-        if ~isempty(jittered_PRIs),     fprintf('  + Jittered PRIs (ms):     %s\n', num2str(jittered_PRIs * 1e3, '%.4f  ')); end
+        fprintf('\n[M?c sai l?ch C=%d] ?ã trích xu?t t?p h?p {PRI_p}:\n', C);
+        if ~isempty(non_jittered_PRIs), fprintf('  + Non-Jittered {PRI_p} (ms): %s\n', num2str(non_jittered_PRIs * 1e3, '%.4f  ')); end
+        if ~isempty(jittered_PRIs),     fprintf('  + Jittered {PRI_p} (ms):     %s\n', num2str(jittered_PRIs * 1e3, '%.4f  ')); end
         
         success_in_this_C = false;
+        max_p_pri = max(PRI_p);
         
-        % --- MULTI-PARAMETER SEQUENCE SEARCH ENGINE ---
-        for i = 1:length(all_pot_PRIs)
-            current_PRI = all_pot_PRIs(i);
+        % =================================================================
+        % MÔ T? TÌM KI?M CHU?I ?A THAM S? (HÌNH 4 & HÌNH 5)
+        % =================================================================
+        p = 1; % p: Ch? s? c?a xung b?t ??u th? nghi?m chu?i (p-th input pulse)
+        while p <= (length(Xin.TOA) - 3)
             
-            % Dynamically scale the time tolerance window (W) based on modulation class
-            W = iif(ismember(current_PRI, jittered_PRIs), current_PRI * 0.35, 2e-5);
+            % Kh?i t?o tr?ng thái thi?t l?p chu?i (Figure 4)
+            k = 1; % k: S? l??ng xung hi?n t?i trong chu?i ?ang tìm ki?m
+            temp_seq_idx_local = [p]; 
+            matched_pri_indices = [];
+            PRI_out = []; % M?ng l?u l?ch s? chu k? th?c t? ph?c v? ph??ng trình (13)
             
-            p = 1; 
-            while p <= length(active_TOA)
-                k = p;
-                temp_seq_idx_local = k; 
-                pulses_found = 1;
+            % -------------------------------------------------------------
+            % TR?NG THÁI 1: B??C 1 KH?I T?O CHU?I M?I (Figure 4)
+            % -------------------------------------------------------------
+            while k < 4
+                found_next = false;
+                last_toa = Xin.TOA(temp_seq_idx_local(end));
                 
-                % PHASE 1: Establish Anchor Sequence (First 4 pulses)
-                while pulses_found < 4
-                    found_next = false;
-                    for j = (k+1):length(active_TOA)
-                        TOA_diff = active_TOA(j) - active_TOA(k);
-                        Z_k = abs(current_PRI - TOA_diff);
-                        
-                        % Compute multi-parameter normalized fingerprint distance metric (M_k)
-                        M_k = ((active_RF(j) - active_RF(k))^2) / (RF_0^2) + ...
-                              ((active_PW(j) - active_PW(k))^2) / (PW_0^2);
-                        
-                        if Z_k < W && M_k < M0
-                            temp_seq_idx_local = [temp_seq_idx_local, j];
-                            k = j; 
-                            pulses_found = pulses_found + 1;
-                            found_next = true;
-                            break; 
-                        end
+                best_Z = Inf;
+                best_j = -1;
+                best_i = -1;
+                
+                % Tìm ki?m song song trên các ?ng viên j và t?p PRI ti?m n?ng i
+                for j = (temp_seq_idx_local(end) + 1):length(Xin.TOA)
+                    if (Xin.TOA(j) - last_toa) > 1.5 * max_p_pri
+                        break; % Gi?i h?n c?a s? tìm ki?m t?i ?a ?? t?i ?u tính toán
                     end
-                    if ~found_next, break; end 
-                end
-                
-                % PHASE 2: Track Pulse Stream with Missing Pulse Compensation
-                if pulses_found >= 4
-                    M_multiplier = 1; 
-                    while k < length(active_TOA)
-                        found_next = false;
-                        for j = (k+1):length(active_TOA)
-                            TOA_diff = active_TOA(j) - active_TOA(k);
-                            Z_k = abs(current_PRI * M_multiplier - TOA_diff);
-                            M_k = ((active_RF(j) - active_RF(k))^2) / (RF_0^2) + ...
-                                  ((active_PW(j) - active_PW(k))^2) / (PW_0^2);
+                    
+                    % Ph??ng trình (7): Tính toán kho?ng cách fingerprint v?t lý M_k(j)
+                    M_k = ((Xin.RF(j) - Xin.RF(temp_seq_idx_local(end)))^2) / (RF_0^2) + ...
+                          ((Xin.PW(j) - Xin.PW(temp_seq_idx_local(end)))^2) / (PW_0^2);
+                    
+                    if M_k < M0
+                        for i = 1:length(PRI_p)
+                            current_PRI = PRI_p(i);
                             
-                            if Z_k < (W * M_multiplier) && M_k < M0
-                                temp_seq_idx_local = [temp_seq_idx_local, j];
-                                k = j;
-                                M_multiplier = 1; % Reset multiplier upon pulse recovery
-                                found_next = true;
-                                break;
+                            % C?u hình dung sai th?i gian W d?a trên ??c tính ?i?u ch?
+                            if ismember(current_PRI, jittered_PRIs)
+                                W = current_PRI * 0.35;
+                            else
+                                W = 2e-5;
+                            end
+                            
+                            % Ph??ng trình (6): Tính hàm kh?p th?i gian Z_k(i, j)
+                            Z_k = abs(current_PRI - (Xin.TOA(j) - last_toa));
+                            
+                            if Z_k < W
+                                if Z_k < best_Z
+                                    best_Z = Z_k;
+                                    best_j = j;
+                                    best_i = i;
+                                end
                             end
                         end
+                    end
+                end
+                
+                % ?ánh giá k?t qu?: "Tìm th?y xung ti?p theo?" (Find the next pulse?)
+                if best_j ~= -1
+                    % Tr??ng h?p: CÓ (Yes) -> C?p nh?t ch? s? theo Figure 4
+                    k = k + 1;
+                    temp_seq_idx_local(end+1) = best_j; 
+                    PRI_out(end+1) = Xin.TOA(best_j) - last_toa; 
+                    matched_pri_indices(end+1) = best_i; 
+                    found_next = true;
+                else
+                    % Tr??ng h?p: KHÔNG (No) -> ??t chu?i m?i
+                    break;
+                end
+            end
+            
+            % Ki?m tra ?i?u ki?n k?t thúc B??c 1: ?? 4 xung liên ti?p (success = 1)
+            if k == 4
+                success = 1;
+            else
+                success = 0;
+            end
+            
+            % -------------------------------------------------------------
+            % TR?NG THÁI 2: B??C 2 BÁM SÁT CHU?I VÀ BÙ M?T XUNG (Figure 5)
+            % -------------------------------------------------------------
+            if success == 1
+                % Khóa ki?u ?i?u ch? c?a ?ài phát d?a trên xung m?i cu?i
+                locked_jitter = ismember(PRI_p(matched_pri_indices(end)), jittered_PRIs);
+                
+                M = 1; % M: H? s? ??m xung m?t liên ti?p (M-multiplier)
+                TOA_ref = Xin.TOA(temp_seq_idx_local(end)); % M?c th?i gian tham chi?u
+                last_found_local_idx = temp_seq_idx_local(end);
+                T_1 = Xin.TOA(end); % T_1: Th?i ?i?m k?t thúc khung d? li?u
+                
+                while TOA_ref <= T_1
+                    best_Z = Inf;
+                    best_j = -1;
+                    best_i = -1;
+                    
+                    % Quét tìm xung j th?a mãn trong vùng n?i r?ng ??ng theo M
+                    for j = (last_found_local_idx + 1):length(Xin.TOA)
+                        if (Xin.TOA(j) - TOA_ref) > 1.5 * M * max_p_pri
+                            break;
+                        end
                         
-                        if ~found_next
-                            M_multiplier = M_multiplier + 1;
-                            if M_multiplier > 15 
-                                break; % Break sequence if missing consecutive dropouts exceed 15
-                            end 
+                        % Tính kho?ng cách v?t lý M_k(j) t? xung th?c thu g?n nh?t
+                        M_k = ((Xin.RF(j) - Xin.RF(last_found_local_idx))^2) / (RF_0^2) + ...
+                              ((Xin.PW(j) - Xin.PW(last_found_local_idx))^2) / (PW_0^2);
+                        
+                        if M_k < M0
+                            for i = 1:length(PRI_p)
+                                current_PRI = PRI_p(i);
+                                is_curr_jitter = ismember(current_PRI, jittered_PRIs);
+                                
+                                if is_curr_jitter
+                                    W_limit = (current_PRI * 0.35) * M;
+                                    % Ph??ng trình (12): ??ng b? hóa theo ?? giãn Jittered
+                                    Z_k = abs(M * current_PRI - (Xin.TOA(j) - TOA_ref));
+                                else
+                                    W_limit = 2e-5;
+                                    % Ph??ng trình (6): Áp d?ng m?c TOA_ref ?ã d?ch chuy?n ??ng
+                                    Z_k = abs(current_PRI - (Xin.TOA(j) - TOA_ref));
+                                end
+                                
+                                if Z_k < W_limit
+                                    if Z_k < best_Z
+                                        best_Z = Z_k;
+                                        best_j = j;
+                                        best_i = i;
+                                    end
+                                end
+                            end
                         end
                     end
                     
-                    % PHASE 3: Minimum Sequence Length Acceptance Test
-                    if length(temp_seq_idx_local) >= 10
-                        % Map local active indices back to global stream indices
-                        global_indices = active_idx(temp_seq_idx_local);
-                        extracted_flags(global_indices) = true;
-                        separated_sequences{end+1} = global_indices;
+                    % ?ánh giá k?t qu? bám sát: "Tìm ki?m thành công?" (Successful search?)
+                    if best_j ~= -1
+                        % Tr??ng h?p: CÓ (Yes) -> Tìm th?y xung th?c t?
+                        k = k + 1;
+                        temp_seq_idx_local(end+1) = best_j;
                         
-                        fprintf('>> Successfully extracted 1 Emitter! (C=%d, PRI=%.4f ms, Pulses=%d)\n', ...
-                                C, current_PRI * 1e3, length(global_indices));
+                        if ismember(PRI_p(best_i), jittered_PRIs)
+                            PRI_out(end+1) = (Xin.TOA(best_j) - TOA_ref) / M;
+                        else
+                            PRI_out(end+1) = Xin.TOA(best_j) - TOA_ref;
+                        end
                         
-                        success_in_this_C = true;
-                        break; 
+                        matched_pri_indices(end+1) = best_i;
+                        last_found_local_idx = best_j;
+                        TOA_ref = Xin.TOA(best_j);
+                        M = 1; % Reset h? s? ??m xung m?t v? m?c ??nh
+                    else
+                        % Tr??ng h?p: KHÔNG (No) -> X? lý m?t xung theo nhánh r? Figure 5
+                        if locked_jitter == 1
+                            % Nhánh JITTER = 1: Ch? t?ng b? nhân M
+                            M = M + 1;
+                        else
+                            % Nhánh JITTER = 0 (Non-Jittered): T?ng M và d?ch chuy?n m?c TOA_ref
+                            M = M + 1;
+                            target_index = k - M + 1; % ??nh v? chính xác ph?n t? (k-M) trong MATLAB
+                            
+                            if target_index >= 1 && target_index <= length(PRI_out)
+                                shift_val = PRI_out(target_index);
+                                TOA_ref = TOA_ref + shift_val; % T?nh ti?n m?c toán h?c theo ph??ng trình (13)
+                            else
+                                % Ph??ng phòng v? d? phòng b?ng PRI t?nh g?n nh?t
+                                TOA_ref = TOA_ref + PRI_p(matched_pri_indices(end));
+                            end
+                        end
+                        
+                        % Ng??ng d?ng bám (H?y bám n?u s? xung m?t liên ti?p v??t quá gi?i h?n)
+                        if M > 15 
+                            break; 
+                        end 
                     end
                 end
-                p = p + 1;
+                
+                % -------------------------------------------------------------
+                % TR?NG THÁI 3: KI?M TRA ?? DÀI VÀ TRÍCH XU?T CHU?I
+                % -------------------------------------------------------------
+                if length(temp_seq_idx_local) >= 10
+                    % Chuy?n ??i ch? s? n?i b? (local) sang ch? s? lu?ng d? li?u toàn c?c (global)
+                    global_indices = active_idx(temp_seq_idx_local);
+                    extracted_flags(global_indices) = true; 
+                    separated_sequences{end+1} = global_indices; 
+                    
+                    avg_pri = mean(PRI_p(matched_pri_indices));
+                    fprintf('>> ?ã bóc tách thành công 1 ?ài phát! (C=%d, PRI trung bình=%.4f ms, S? xung=%d)\n', ...
+                            C, avg_pri * 1e3, length(global_indices));
+                    
+                    success_in_this_C = true;
+                    
+                    % Thu h?p lu?ng d? li?u Xin ngay l?p t?c ?? gi?i phóng b? ??m
+                    active_idx = find(~extracted_flags);
+                    Xin.TOA = TOA_sorted(active_idx);
+                    Xin.RF  = RF_sorted(active_idx);
+                    Xin.PW  = PW_sorted(active_idx);
+                    
+                    % ??t l?i p = 1 ?? quét l?i t? ??u trên lu?ng d? li?u s?ch m?i
+                    p = 1; 
+                    continue; 
+                end
             end
-            if success_in_this_C, break; end
+            p = p + 1;
         end
         
-        % Hasani (2021) Rank control update logic loop
-        C = iif(success_in_this_C, 1, C + 1); % Reset C to 1 on success to capture residual bins; increment on failure
+        % ?i?u khi?n b?c nâng h? C vòng l?p ngoài
+        C = iif(success_in_this_C, 1, C + 1);
     end
 end
 
-% --- Inline functional helpers for clean code structure ---
-function val = active_idx_subset(arr, idx), val = arr(idx); end
-function res = iif(cond, true_val, false_val), if cond, res = true_val; else, res = false_val; end; end
+% --- Hàm b? tr? n?i tuy?n ---
+function res = iif(cond, true_val, false_val)
+    if cond, res = true_val; else, res = false_val; end
+end
