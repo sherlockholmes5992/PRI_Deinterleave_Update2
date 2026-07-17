@@ -14,7 +14,7 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
     PW_0 = algoParams.PW_0;
     t_Bin = algoParams.t_Bin;
     x_emp = algoParams.x_emp;
-    k_emp = algoParams.k_emp;
+    k_emp = algoParams.k_emp; 
 
     % --- Initialize tracking arrays ---
     extracted_flags = false(1, N_pulses); 
@@ -120,7 +120,7 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
                 
                 % Tìm ki?m song song trên các ?ng viên j và t?p PRI ti?m n?ng i
                 for j = (temp_seq_idx_local(end) + 1):length(Xin.TOA)
-                    if (Xin.TOA(j) - last_toa) > 1.5 * max_p_pri
+                    if (Xin.TOA(j) - last_toa) > 2 * max_p_pri
                         break; % Gi?i h?n c?a s? tìm ki?m t?i ?a ?? t?i ?u tính toán
                     end
                     
@@ -134,9 +134,9 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
                             
                             % C?u hình dung sai th?i gian W d?a trên ??c tính ?i?u ch?
                             if ismember(current_PRI, jittered_PRIs)
-                                W = current_PRI * 0.35;
+                                W = current_PRI * 0.25;
                             else
-                                W = 2e-5;
+                                W = algoParams.W;
                             end
                             
                             % Ph??ng trình (6): Tính hàm kh?p th?i gian Z_k(i, j)
@@ -193,7 +193,7 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
                     
                     % Quét tìm xung j th?a mãn trong vùng n?i r?ng ??ng theo M
                     for j = (last_found_local_idx + 1):length(Xin.TOA)
-                        if (Xin.TOA(j) - TOA_ref) > 1.5 * M * max_p_pri
+                        if (Xin.TOA(j) - TOA_ref) > 2 * M * max_p_pri
                             break;
                         end
                         
@@ -207,11 +207,11 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
                                 is_curr_jitter = ismember(current_PRI, jittered_PRIs);
                                 
                                 if is_curr_jitter
-                                    W_limit = (current_PRI * 0.35) * M;
+                                    W_limit = (current_PRI * 0.25) * M;
                                     % Ph??ng trình (12): ??ng b? hóa theo ?? giãn Jittered
                                     Z_k = abs(M * current_PRI - (Xin.TOA(j) - TOA_ref));
                                 else
-                                    W_limit = 2e-5;
+                                    W_limit = algoParams.W;
                                     % Ph??ng trình (6): Áp d?ng m?c TOA_ref ?ã d?ch chuy?n ??ng
                                     Z_k = abs(current_PRI - (Xin.TOA(j) - TOA_ref));
                                 end

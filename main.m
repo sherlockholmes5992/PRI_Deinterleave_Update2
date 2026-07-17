@@ -4,7 +4,8 @@
 % Architecture: Modular Design for Optimization and Easy Debugging
 % =========================================================================
 
-clc; clear; close all;
+% clc; clear; close all;
+
 
 %% --- STEP 1: EMITTER CONFIGURATION ---
 t_sim = 0.15; % Total simulation time window (120 ms)
@@ -18,33 +19,38 @@ emCfg(5).type = 'Fixed';     emCfg(5).PRI = 157e-5;             emCfg(5).RF = 5e
 emCfg(6).type = 'Fixed';     emCfg(6).PRI = 200e-5;             emCfg(6).RF = 5e9;   emCfg(6).PW = 4.2e-6;   emCfg(6).jitter = 0;   emCfg(6).t_start = 0.0045; emCfg(6).p_missing = 0.1;          emCfg(6).toa_error = 2e-6;
 emCfg(7).type = 'Fixed';     emCfg(7).PRI = 201e-5;             emCfg(7).RF = 5e9;   emCfg(7).PW = 4e-6;   emCfg(7).jitter = 0;   emCfg(7).t_start = 0.0005; emCfg(7).p_missing = 0.1;          emCfg(7).toa_error = 2e-6;
 emCfg(8).type = 'Staggered';     emCfg(8).PRI = [50e-5, 75e-5, 90e-5];             emCfg(8).RF = 5e9;   emCfg(8).PW = 4.5e-6;   emCfg(8).jitter = 0;   emCfg(8).t_start = 0.0022; emCfg(8).p_missing = 0.1;          emCfg(8).toa_error = 2e-6;
+
 %% --- STEP 2: ALGORITHM HYPERPARAMETERS ---
 algoParams.C_max = 25;       % Maximum difference level (C-level) to prevent infinite loops
 algoParams.M0 = 1;         % Distance threshold for physical radar fingerprints matching (RF, PW)
 algoParams.RF_0 = 3e9;       % Radio Frequency (RF) normalization radius
 algoParams.PW_0 = 1e-6;      % Pulse Width (PW) normalization radius
 algoParams.t_Bin = 1e-5;     % Time bin width for the Sequential Difference Histogram (SDIF)
-algoParams.x_emp = 0.08;      % Empirical scaling factor for the optimal threshold curve bounds
-algoParams.k_emp = 1;        % Decay coefficient controlling the dynamic threshold slope curvature
+algoParams.x_emp = 0.4;      % Empirical scaling factor for the optimal threshold curve bounds
+algoParams.k_emp = 0.3;        % Decay coefficient controlling the dynamic threshold slope curvature
+algoParams.W = 3e-5;
 
 %% --- STEP 3: EXECUTE SIMULATION ENGINE & DEINTERLEAVING ---
 
 % 1. Generate interleaved radar pulse stream with realistic channel degradation and dropouts
 [pdwData, initialSDIF] = generate_pulses(emCfg, t_sim);
+[pdwData, initialSDIF] = generate_pulses(emCfg, t_sim);
 
 % 2. Execute the core SDIF difference loops and multi-parameter sequence search engine
-[separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, algoParams);
+[separated_sequences, extracted_flags] = radar_core(pdwData, algoParams);
 
-% % 3. Advanced Post-Processing: Recover harmonic fragments and safeguard co-channel paths
-% mergeParams.rf_merge_tol = 0.5e9;   % Tight RF fingerprint matching boundary tolerance (0.5 GHz)
-% mergeParams.pw_merge_tol = 0.5e-6;  % Tight PW fingerprint matching boundary tolerance (0.5 us)
-% mergeParams.pri_ratio_tol = 0.08;   % Allowed fundamental/harmonic ratio deviation tolerance (8%)
-% final_sequences = merge_sequences(pdwData, separated_sequences, mergeParams);
-% 
-% %% --- STEP 4: GENERATE AUDIT REPORT & VISUAL PLOTS ---
-% export_results(pdwData, final_sequences, extracted_flags);
-% plot_results(pdwData, final_sequences, initialSDIF, length(emCfg));
+% MERGE STEP (ERASE MERGE STEP BECAUSE OF 
+% 3. Advanced Post-Processing: Recover harmonic fragments and safeguard co-channel paths
+mergeParams.rf_merge_tol = 0.5e9;   % Tight RF fingerprint matching boundary tolerance (0.5 GHz)
+mergeParams.pw_merge_tol = 0.5e-6;  % Tight PW fingerprint matching boundary tolerance (0.5 us)
+mergeParams.pri_ratio_tol = 0.08;   % Allowed fundamental/harmonic ratio deviation tolerance (8%)
+final_sequences = merge_sequences(pdwData, separated_sequences, mergeParams);
 
 %% --- STEP 4: GENERATE AUDIT REPORT & VISUAL PLOTS ---
-export_results(pdwData, separated_sequences, extracted_flags);
-plot_results(pdwData, separated_sequences, initialSDIF, length(emCfg));
+export_results(pdwData, final_sequences, extracted_flags);
+plot_results(pdwData, final_sequences, initialSDIF, length(emCfg));
+
+
+% % %% --- STEP 4: GENERATE AUDIT REPORT & VISUAL PLOTS ---
+% export_results(pdwData, separated_sequences, extracted_flags);
+% plot_results(pdwData, separated_sequences, initialSDIF, length(emCfg));
