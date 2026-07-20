@@ -1,4 +1,4 @@
-function plot_results(pdwData, separated_sequences, initialSDIF, num_emitters)
+function plot_results(pdwData, separated_sequences, initialSDIF, num_emitters, algoParams)
     fprintf('\n--- STARTING VISUAL VERIFICATION PLOTS ---\n');
     
     % --- Unpack Pulse Description Word (PDW) parameters ---
@@ -19,14 +19,14 @@ function plot_results(pdwData, separated_sequences, initialSDIF, num_emitters)
     % -------------------------------------------------------------------------
     % PLOT 1: SDIF Histogram (C=1) - Verify candidate PRI spectral lines exceeding threshold
     % -------------------------------------------------------------------------
-    figure('Name', 'Verification 1: SDIF Histogram at C=1', 'Position', [100, 100, 800, 450]);
+    figure('Name', sprintf('Verification 1: SDIF Histogram at C=%d', algoParams.C_test), 'Position', [100, 100, 800, 450]);
     stem(bin_centers_C1 * 1e3, N_counts_C1, 'Marker', 'none', 'LineWidth', 1.5, 'Color', [0.2 0.4 0.8]);
     hold on; grid on;
     plot(bin_centers_C1 * 1e3, Threshold_C1, 'r--', 'LineWidth', 2, 'DisplayName', 'Optimal Threshold');
     if ~isempty(pot_idx_C1)
         plot(bin_centers_C1(pot_idx_C1) * 1e3, N_counts_C1(pot_idx_C1), 'ro', 'MarkerFaceColor', 'r', 'MarkerSize', 5, 'DisplayName', 'Potential PRI');
     end
-    title('Sequential Difference Histogram (SDIF) at C = 1');
+    title(sprintf('Sequential Difference Histogram (SDIF) at C = %d', algoParams.C_test));
     xlabel('TOA Difference (ms)'); ylabel('Count (Bin)');
     legend('Location', 'northeast'); xlim([0, min(max_diff_C1*1e3, 3.5)]);
 

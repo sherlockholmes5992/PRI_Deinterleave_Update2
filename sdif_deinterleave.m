@@ -39,7 +39,7 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
         
         % --- COMPUTE SDIF HISTOGRAM AT DIFFERENCE LEVEL C ---
         diff_TOA = abs(Xin.TOA(1 : end-C) - Xin.TOA(1+C : end));
-        diff_TOA = round(diff_TOA, 7); 
+%         diff_TOA = round(diff_TOA, 7); 
         max_diff = max(diff_TOA);
         edges = 0 : t_Bin : (max_diff + t_Bin);
         [N_counts, ~] = histcounts(diff_TOA, edges);
@@ -78,11 +78,38 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
         
         % --- PRI TYPE CLASSIFICATION (JITTER VS. NON-JITTER) ---
         is_jittered = false(1, length(pot_idx_filtered));
-        for i = 1:length(pot_idx_filtered)
-            if i < length(pot_idx_filtered) && (pot_idx_filtered(i+1) - pot_idx_filtered(i) <= 2)
-                is_jittered(i) = true;
-                is_jittered(i+1) = true;
+        
+        idx_c = 1;
+%         for i = 1:length(pot_idx_filtered)
+%             if i < length(pot_idx_filtered) && (pot_idx_filtered(i+1) - pot_idx_filtered(i) <= 2)
+%                 is_jittered(i) = true;
+%                 is_jittered(i+1) = true;
+%             end
+%         end
+        
+        while idx_c <= length(pot_idx_filtered)
+            start_c = idx_c;
+            
+            % Quét ?? tìm ?i?m k?t thúc c?a m?t c?m bin liên t?c cách nhau <= 2 ô
+            while idx_c < length(pot_idx_filtered) && ...
+                  (pot_idx_filtered(idx_c+1) - pot_idx_filtered(idx_c) <= 2)
+                idx_c = idx_c + 1;
             end
+            end_c = idx_c;
+            
+            % Tính ?? r?ng th?c t? c?a c?m ??nh (theo s? l??ng bin trong histogram)
+            cluster_width = pot_idx_filtered(end_c) - pot_idx_filtered(start_c) + 1;
+            
+            % NG??NG FPGA-FRIENDLY: 
+            % N?u c?m bins tr?i dài > 3 bins (t??ng ???ng bi?n thiên > 30 us), ch?c ch?n là Jitter.
+            % N?u c?m bins ch? có ?? r?ng t? 1 ??n 3 bins, ?ây là ??nh nh?n c?a Fixed ho?c Staggered.
+            if cluster_width > 3
+                is_jittered(start_c:end_c) = true;
+            else
+                is_jittered(start_c:end_c) = false;
+            end
+            
+            idx_c = idx_c + 1;
         end
         
         jittered_PRIs = PRI_p(is_jittered);
