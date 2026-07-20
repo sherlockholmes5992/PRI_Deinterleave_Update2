@@ -39,7 +39,7 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
         
         % --- COMPUTE SDIF HISTOGRAM AT DIFFERENCE LEVEL C ---
         diff_TOA = abs(Xin.TOA(1 : end-C) - Xin.TOA(1+C : end));
-%         diff_TOA = round(diff_TOA, 7); 
+        diff_TOA = round(diff_TOA, 7); 
         max_diff = max(diff_TOA);
         edges = 0 : t_Bin : (max_diff + t_Bin);
         [N_counts, ~] = histcounts(diff_TOA, edges);
@@ -54,32 +54,32 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
         % --- EXTRACT POTENTIAL RADAR PRI CANDIDATES {PRI_p} ---
         pot_idx = find(N_counts > Threshold);
         pot_PRIs_raw = bin_centers(pot_idx);
+        PRI_p = pot_PRIs_raw;
+        pot_idx_filtered = pot_idx;       
         
         if isempty(pot_PRIs_raw)
             C = C + 1; 
             continue;
         end
         
-        % --- HARMONIC SUPPRESSION FILTER ---
-        is_harmonic = false(1, length(pot_PRIs_raw));
-        for i = 1:length(pot_PRIs_raw)
-            for j_harm = 1:(i-1)
-                if ~is_harmonic(j_harm)
-                    ratio = pot_PRIs_raw(i) / pot_PRIs_raw(j_harm);
-                    if abs(ratio - round(ratio)) < (t_Bin / pot_PRIs_raw(j_harm))
-                        is_harmonic(i) = true;
-                        break;
-                    end
-                end
-            end
-        end
-        PRI_p = pot_PRIs_raw(~is_harmonic); % T?p h?p {PRI_p} chu?n hóa
-        pot_idx_filtered = pot_idx(~is_harmonic);
+%         % --- HARMONIC SUPPRESSION FILTER ---
+%         is_harmonic = false(1, length(pot_PRIs_raw));
+%         for i = 1:length(pot_PRIs_raw)
+%             for j_harm = 1:(i-1)
+%                 if ~is_harmonic(j_harm)
+%                     ratio = pot_PRIs_raw(i) / pot_PRIs_raw(j_harm);
+%                     if abs(ratio - round(ratio)) < (t_Bin / pot_PRIs_raw(j_harm))
+%                         is_harmonic(i) = true;
+%                         break;
+%                     end
+%                 end
+%             end
+%         end
+%         PRI_p = pot_PRIs_raw(~is_harmonic); % T?p h?p {PRI_p} chu?n hóa
+%         pot_idx_filtered = pot_idx(~is_harmonic);
         
         % --- PRI TYPE CLASSIFICATION (JITTER VS. NON-JITTER) ---
-        is_jittered = false(1, length(pot_idx_filtered));
-        
-        idx_c = 1;
+%         is_jittered = false(1, length(pot_idx_filtered));
 %         for i = 1:length(pot_idx_filtered)
 %             if i < length(pot_idx_filtered) && (pot_idx_filtered(i+1) - pot_idx_filtered(i) <= 2)
 %                 is_jittered(i) = true;
@@ -87,6 +87,9 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
 %             end
 %         end
         
+        is_jittered = false(1, length(pot_idx_filtered));
+        
+        idx_c = 1;
         while idx_c <= length(pot_idx_filtered)
             start_c = idx_c;
             
@@ -103,7 +106,7 @@ function [separated_sequences, extracted_flags] = sdif_deinterleave(pdwData, alg
             % NG??NG FPGA-FRIENDLY: 
             % N?u c?m bins tr?i dài > 3 bins (t??ng ???ng bi?n thiên > 30 us), ch?c ch?n là Jitter.
             % N?u c?m bins ch? có ?? r?ng t? 1 ??n 3 bins, ?ây là ??nh nh?n c?a Fixed ho?c Staggered.
-            if cluster_width > 3
+            if cluster_width > 1
                 is_jittered(start_c:end_c) = true;
             else
                 is_jittered(start_c:end_c) = false;
